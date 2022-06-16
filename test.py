@@ -64,8 +64,9 @@ if __name__ == '__main__' :
     print(f'Running on: {device}')
 
     my_f = CappedMean()
-    torch_f = lambda x, N : torch.reshape(torch.stack([torch.mean(x_[:N.flatten()[ii], ...], dim=0) 
-                                                      for ii, x_ in enumerate(x.reshape(-1, *x.shape[N.dim():]))]),
+    torch_f = lambda x, N : torch.reshape(torch.stack([torch.mean(x_[:N_, ...], dim=0) 
+                                                      for x_, N_ in
+                                                      zip(x.reshape(-1, *x.shape[N.dim():]), N.flatten())]),
                                           (*x.shape[:N.dim()], *x.shape[N.dim()+1:]))
     wrong_f = lambda x, N : torch.mean(x, dim=N.dim())
 
