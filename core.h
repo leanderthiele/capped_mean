@@ -102,7 +102,7 @@ capped_mean_forward
                              .dtype(x.dtype())
                              .device(x.device())
                              .layout(torch::kStrided)
-                             .requires_grad(false) // TODO
+                             .requires_grad(false)
                          );
 
     CHECK_INPUT(y);
@@ -148,7 +148,7 @@ capped_mean_backward
     // consistency
     check_shapes(x.sizes(), N.sizes(), grad.sizes());
 
-    auto y = torch::empty_like(x);
+    auto y = torch::empty_like(x, torch::TensorOptions().requires_grad(false));
 
     CHECK_INPUT(y);
 
