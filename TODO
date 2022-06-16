@@ -2,6 +2,12 @@ add more specializations (double, int16, ...)
 
 compiler flags -- O3, std=c++17 (?)
 
+put nonlinear function into backward test
+
+openmp for cpu version
+
+
+
 
 MORE AMBITIOUS
 
