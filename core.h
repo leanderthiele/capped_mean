@@ -11,7 +11,7 @@
 #include "shapes.h"
 
 #ifdef CAPPED_MEAN_CUDA
-template<typename TN, typename Tval>
+template<Mode mode, typename TN, typename Tval>
 __global__
 static void
 capped_mean_forward_kernel
@@ -23,35 +23,18 @@ capped_mean_forward_kernel
     TN idx1 = blockIdx.x,
        idx3 = threadIdx.x;
 
-    capped_mean_forward_atom<TN, Tval>(idx1, idx3,
-                                       d1, d2, d3,
-                                       x, N, y);
-}
-
-template<typename TN, typename Tval>
-__global__
-static void
-capped_mean_backward_kernel
-    (TN d1, TN d2, TN d3,
-     const Tval * __restrict__ x,
-     const TN * __restrict__ N,
-     Tval * __restrict__ y)
-{
-    TN idx1 = blockIdx.x,
-       idx3 = threadIdx.x;
-
-    capped_mean_backward_atom<TN, Tval>(idx1, idx3,
-                                        d1, d2, d3,
-                                        x, N, y);
+    capped_mean_atom<mode, TN, Tval>(idx1, idx3,
+                                     d1, d2, d3,
+                                     x, N, y);
 }
 
 // need to instantiate for all possible types
 #define INSTANTIATE_KERNELS(TN, Tval)              \
     template __global__ void                       \
-    capped_mean_forward_kernel <TN, Tval>          \
+    capped_mean_kernel <FORWARD, TN, Tval>         \
     (TN, TN, TN, const Tval *, const TN *, Tval *);\
     template __global__ void                       \
-    capped_mean_backward_kernel <TN, Tval>         \
+    capped_mean_kernel <BACKWARD, TN, Tval>        \
     (TN, TN, TN, const Tval *, const TN *, Tval *)
 
 // at the moment, we don't do this for that many types, can always
@@ -63,37 +46,20 @@ INSTANTIATE_KERNELS(int64_t, float);
 
 #endif // CAPPED_MEAN_CUDA
 
-template<typename TN, typename Tval>
+template<Mode mode, typename TN, typename Tval>
 static void
-capped_mean_forward_impl
+capped_mean_impl
     (TN d1, TN d2, TN d3,
      const Tval * __restrict__ x,
      const TN * __restrict__ N,
      Tval * __restrict__ y)
 {
     #ifdef CAPPED_MEAN_CUDA
-    capped_mean_forward_kernel<TN, Tval><<<d1, d3>>>(d1, d2, d3, x, N, y);
+    capped_mean_kernel<mode, TN, Tval><<<d1, d3>>>(d1, d2, d3, x, N, y);
     #else
     for (TN idx1=0; idx1 != d1; ++idx1)
         for (TN idx3=0; idx3 != d3; ++idx3)
-            capped_mean_forward_atom(idx1, idx3, d1, d2, d3, x, N, y);
-    #endif
-}
-
-template<typename TN, typename Tval>
-static void
-capped_mean_backward_impl
-    (TN d1, TN d2, TN d3,
-     const Tval * __restrict__ x,
-     const TN * __restrict__ N,
-     Tval * __restrict__ y)
-{
-    #ifdef CAPPED_MEAN_CUDA
-    capped_mean_backward_kernel<TN, Tval><<<d1, d3>>>(d1, d2, d3, x, N, y);
-    #else
-    for (TN idx1=0; idx1 != d1; ++idx1)
-        for (TN idx3=0; idx3 != d3; ++idx3)
-            capped_mean_backward_atom(idx1, idx3, d1, d2, d3, x, N, y);
+            capped_mean_atom<mode, TN, Tval>(idx1, idx3, d1, d2, d3, x, N, y);
     #endif
 }
 
@@ -139,17 +105,15 @@ capped_mean_forward
 
     CHECK_INPUT(y);
 
-    // TODO apparently, in the following .type() is deprecated
-
     // perform the computation
     TORCH_CHECK(x.scalar_type() == torch::ScalarType::Float,
                 "types other than float not implemented yet");
     
-    #define CALL_WITH_TYPES(TN, Tval)                          \
-        capped_mean_forward_impl<TN, Tval>(d1, d2, d3,         \
-                                           x.data_ptr<Tval>(), \
-                                           N.data_ptr<TN>(),   \
-                                           y.data_ptr<Tval>())
+    #define CALL_WITH_TYPES(TN, Tval)                           \
+        capped_mean_impl<FORWARD, TN, Tval>(d1, d2, d3,         \
+                                            x.data_ptr<Tval>(), \
+                                            N.data_ptr<TN>(),   \
+                                            y.data_ptr<Tval>())
 
     // NOTE I have checked with the header that
     // Int = int, Long = int64_t
@@ -194,11 +158,11 @@ capped_mean_backward
     TORCH_CHECK(x.scalar_type() == torch::ScalarType::Float,
                 "types other than float not implemented yet");
 
-    #define CALL_WITH_TYPES(TN, Tval)                              \
-        capped_mean_backward_impl<TN, Tval>(d1, d2, d3,            \
-                                            grad.data_ptr<Tval>(), \
-                                            N.data_ptr<TN>(),      \
-                                            y.data_ptr<Tval>())
+    #define CALL_WITH_TYPES(TN, Tval)                               \
+        capped_mean_impl<BACKWARD, TN, Tval>(d1, d2, d3,            \
+                                             grad.data_ptr<Tval>(), \
+                                             N.data_ptr<TN>(),      \
+                                             y.data_ptr<Tval>())
 
     if (N.scalar_type() == torch::ScalarType::Int)
         CALL_WITH_TYPES(int, float);
