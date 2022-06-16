@@ -40,7 +40,7 @@ capped_mean_kernel
 INSTANTIATE_KERNELS(int, float);
 INSTANTIATE_KERNELS(int64_t, float);
 
-#undef INSTANTIATE_KERNEL
+#undef INSTANTIATE_KERNELS
 
 #endif // CAPPED_MEAN_CUDA
 
