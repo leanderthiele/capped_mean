@@ -9,7 +9,7 @@ import capped_mean_cpu, capped_mean_cuda
 # because the compiled library only operates on raw memory.
 # However, I have implemented a check for this in test.py and the cost is marginal.
 
-class CappedMeanFunction(torch.autograd.Function) :
+class _CappedMeanFunction(torch.autograd.Function) :
 
     @staticmethod
     def _dispatcher (function_name, x, *args) :
@@ -19,26 +19,21 @@ class CappedMeanFunction(torch.autograd.Function) :
         return f(x, *args)
     
     @staticmethod
-    def forward (ctx, x, N, keepdim) :
+    def forward (ctx, x, N, keepdim=False) :
         x = x.contiguous()
         N = N.contiguous()
         ctx.save_for_backward(x, N)
-        return CappedMeanFunction._dispatcher('forward', x, N, keepdim)
+        return _CappedMeanFunction._dispatcher('forward', x, N, keepdim)
 
     @staticmethod
+    @torch.autograd.function.once_differentiable # pretty sure we don't need double backward
     def backward (ctx, grad) :
         x, N = ctx.saved_tensors # these are contiguous by construction
         grad = grad.contiguous()
-        xgrad = CappedMeanFunction._dispatcher('backward', x, N, grad)
+        xgrad = _CappedMeanFunction._dispatcher('backward', x, N, grad)
         
         # obviously, output is not differentiable w.r.t. N and keepdim
         return xgrad, None, None
 
-
-class CappedMean(torch.nn.Module) :
-    
-    def __init__(self) :
-        super().__init__()
-
-    def forward(self, x: Tensor, N: Tensor, keepdim: _bool=False) -> Tensor :
-        return CappedMeanFunction.apply(x, N, False)
+# this is what we export
+capped_mean = _CappedMeanFunction.apply

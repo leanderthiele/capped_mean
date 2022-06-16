@@ -1,6 +1,6 @@
 import time
 import torch
-from capped_mean import CappedMean
+from capped_mean import capped_mean
 import warnings
 
 # tuples shape, dim
@@ -8,7 +8,7 @@ import warnings
 # to test how expensive the calls to .contiguous() are
 TEST_CASES = [( (256, 128, 64), 1 ),
               ( (32, 32, 128, 4, 5), 2),
-              ( (256, 128, 1), 1 ),
+              ( (256, 128, 2), 1 ),
               ( (128, 128, 64), 1 ),
              ]
 
@@ -64,7 +64,7 @@ if __name__ == '__main__' :
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f'Running on: {device}')
 
-    my_f = CappedMean()
+    my_f = capped_mean
     torch_f = lambda x, N : torch.reshape(torch.stack([torch.mean(x_[:N_, ...], dim=0) 
                                                       for x_, N_ in
                                                       zip(x.reshape(-1, *x.shape[N.dim():]), N.flatten())]),
@@ -80,10 +80,11 @@ if __name__ == '__main__' :
 
         # additional check using torch.autograd.gradcheck
         print('\tRunning torch.autograd.gradcheck...')
+        rng = torch.Generator(device=device).manual_seed(42)
         x = torch.rand(*shape, requires_grad=True,
-                       dtype=torch.float32, device=device)
+                       dtype=torch.float32, generator=rng, device=device)
         N = torch.randint(low=1, high=shape[dim], size=shape[:dim],
-                          dtype=torch.int64, device=device)
+                          dtype=torch.int64, generator=rng, device=device)
         f = lambda x_, N_=N : my_f(x_, N_)
         # this is all linear so the precision actually doesn't matter
         warnings.filterwarnings('ignore', category=UserWarning,
