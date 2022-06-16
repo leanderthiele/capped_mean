@@ -2,8 +2,6 @@
  * or CPU for loops
  */
 
-// TODO maybe we can template on bool forward/backward for more compact code
-
 #include <type_traits>
 
 // use as template parameters

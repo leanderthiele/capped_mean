@@ -1,12 +1,6 @@
-
-make the code more compact by adding forward/backward as a template
-parameter to most functions.
-(can then typedef an alias for the specializations, although I'm not
- sure about partial specialization)
-
 add more specializations (double, int16, ...)
 
-write a test script with timing
+compiler flags -- O3, std=c++17 (?)
 
 
 MORE AMBITIOUS

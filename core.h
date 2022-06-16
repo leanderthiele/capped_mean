@@ -3,8 +3,6 @@
  * Define CAPPED_MEAN_CUDA before including to get the CUDA version.
  */
 
-// TODO maybe we can template on bool forward/backward for more compact code
-
 #include <torch/extension.h>
 
 #include "atom.h"
@@ -14,7 +12,7 @@
 template<Mode mode, typename TN, typename Tval>
 __global__
 static void
-capped_mean_forward_kernel
+capped_mean_kernel
     (TN d1, TN d2, TN d3,
      const Tval * __restrict__ x,
      const TN * __restrict__ N,
