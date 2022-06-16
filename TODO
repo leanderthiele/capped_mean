@@ -1,0 +1,14 @@
+
+make the code more compact by adding forward/backward as a template
+parameter to most functions.
+(can then typedef an alias for the specializations, although I'm not
+ sure about partial specialization)
+
+add more specializations (double, int16, ...)
+
+write a test script with timing
+
+
+MORE AMBITIOUS
+
+make this into a whole suite of pooling operations with this structure
