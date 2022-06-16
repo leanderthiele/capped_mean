@@ -4,6 +4,11 @@ from torch.types import _bool
 
 import capped_mean_cpu, capped_mean_cuda
 
+# NOTE
+# One may be worried about the cost of the contiguous calls, which are necessary
+# because the compiled library only operates on raw memory.
+# However, I have implemented a check for this in test.py and the cost is marginal.
+
 class CappedMeanFunction(torch.autograd.Function) :
 
     @staticmethod
@@ -15,12 +20,15 @@ class CappedMeanFunction(torch.autograd.Function) :
     
     @staticmethod
     def forward (ctx, x, N, keepdim) :
+        x = x.contiguous()
+        N = N.contiguous()
         ctx.save_for_backward(x, N)
         return CappedMeanFunction._dispatcher('forward', x, N, keepdim)
 
     @staticmethod
     def backward (ctx, grad) :
-        x, N = ctx.saved_tensors
+        x, N = ctx.saved_tensors # these are contiguous by construction
+        grad = grad.contiguous()
         xgrad = CappedMeanFunction._dispatcher('backward', x, N, grad)
         
         # obviously, output is not differentiable w.r.t. N and keepdim
