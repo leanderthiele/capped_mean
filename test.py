@@ -58,6 +58,8 @@ if __name__ == '__main__' :
                                           (*x.shape[:N.dim()], *x.shape[N.dim()+1:]))
     wrong_f = lambda x, N : torch.mean(x, dim=N.dim())
 
+    print(f'On device: {device}')
+
     for shape, dim in TEST_CASES :
 
         print(f'shape={shape}, dim={dim}')
