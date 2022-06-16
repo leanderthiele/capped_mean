@@ -55,8 +55,12 @@ capped_mean_impl
     #ifdef CAPPED_MEAN_CUDA
     capped_mean_kernel<mode, TN, Tval><<<d1, d3>>>(d1, d2, d3, x, N, y);
     #else
-    for (TN idx1=0; idx1 != d1; ++idx1)
-        for (TN idx3=0; idx3 != d3; ++idx3)
+    #ifdef _OPENMP
+    // much better to parallelize over the batch dimension
+    #pragma omp for schedule(static)
+    #endif
+    for (TN idx1=0; idx1 < d1; ++idx1)
+        for (TN idx3=0; idx3 < d3; ++idx3)
             capped_mean_atom<mode, TN, Tval>(idx1, idx3, d1, d2, d3, x, N, y);
     #endif
 }
