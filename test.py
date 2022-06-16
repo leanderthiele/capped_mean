@@ -51,7 +51,9 @@ def run (nruns, f, shape, dim, device) :
     x = torch.rand(*shape, requires_grad=True,
                    dtype=torch.float32, generator=rng, device=device)
     y = f(transf(x), N)
-    torch.sum(y).backward()
+    
+    # we put a non-linear function here in addition for more robust test
+    torch.sum(torch.sin(y)).backward()
     g = x.grad
 
     return forward_time * 1e6, forward_backward_time * 1e6, y, g
