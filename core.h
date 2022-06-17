@@ -93,14 +93,14 @@ call_capped_mean_impl
     const TN *N_ptr = N.data_ptr<TN>();
     Tval *y_ptr = y.data_ptr<Tval>();
 
-    // I believe mean allows average over zero elements, giving NaN.
+    // I believe torch::mean allows average over zero elements, giving NaN.
     // We are a bit more restrictive as we don't see a scenario in which this is
     // not a bug.
     // I don't really know how to iterate over torch::Tensor, so do the caveman
     // approach
     TORCH_CHECK(std::all_of(N_ptr, N_ptr+d1, [d2](TN n){ return n>0 && n<=d2; }),
                 "all N must be in (0, d2]");
-                
+
     capped_mean_impl<mode, TN, Tval>(d1, d2, d3, x_ptr, N_ptr, y_ptr);
 }
 
@@ -168,7 +168,7 @@ capped_mean_forward
 
     // perform the computation
     DISPATCH_IMPL(FORWARD, N.scalar_type(), x.scalar_type(),
-                  d1, d2, d2, x, N, y);
+                  d1, d2, d3, x, N, y);
 
     return y;
 }
