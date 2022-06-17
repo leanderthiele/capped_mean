@@ -92,7 +92,8 @@ call_capped_mean_impl
     // I believe torch::mean allows average over zero elements, giving NaN.
     // We are a bit more restrictive as we don't see a scenario in which this is
     // not a bug.
-    // TODO
+    TORCH_CHECK(torch::min(N).item().to<TN>() > 0, "all N must be >0");
+    TORCH_CHECK(torch::max(N).item().to<TN>() <= d2, "all N must be <=d2");
 
     const Tval *x_ptr = x.data_ptr<Tval>();
     const TN *N_ptr = N.data_ptr<TN>();
