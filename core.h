@@ -3,6 +3,8 @@
  * Define CAPPED_MEAN_CUDA before including to get the CUDA version.
  */
 
+#include <stdint.h>
+
 #include <torch/extension.h>
 
 #include "atom.h"
@@ -13,13 +15,13 @@ template<Mode mode, typename TN, typename Tval>
 __global__
 static void
 capped_mean_kernel
-    (TN d1, TN d2, TN d3,
+    (int64_t d1, int64_t d2, int64_t d3,
      const Tval * __restrict__ x,
      const TN * __restrict__ N,
      Tval * __restrict__ y)
 {
-    TN idx1 = blockIdx.x,
-       idx3 = threadIdx.x;
+    int64_t idx1 = blockIdx.x,
+            idx3 = threadIdx.x;
 
     capped_mean_atom<mode, TN, Tval>(idx1, idx3,
                                      d1, d2, d3,
@@ -30,24 +32,31 @@ capped_mean_kernel
 #define INSTANTIATE_KERNELS(TN, Tval)              \
     template __global__ void                       \
     capped_mean_kernel <FORWARD, TN, Tval>         \
-    (TN, TN, TN, const Tval *, const TN *, Tval *);\
+        (int64_t, int64_t, int64_t,                \
+         const Tval *, const TN *, Tval *);        \
+                                                   \
     template __global__ void                       \
     capped_mean_kernel <BACKWARD, TN, Tval>        \
-    (TN, TN, TN, const Tval *, const TN *, Tval *)
+        (int64_t, int64_t, int64_t,                \
+         const Tval *, const TN *, Tval *)
 
 // at the moment, we don't do this for that many types, can always
 // add if something comes up
 INSTANTIATE_KERNELS(int, float);
 INSTANTIATE_KERNELS(int64_t, float);
+INSTANTIATE_KERNELS(int16_t, float);
+INSTANTIATE_KERNELS(int, double);
+INSTANTIATE_KERNELS(int64_t, double);
+INSTANTIATE_KERNELS(int16_t, double);
 
 #undef INSTANTIATE_KERNELS
 
 #endif // CAPPED_MEAN_CUDA
 
 template<Mode mode, typename TN, typename Tval>
-static void
+inline static void
 capped_mean_impl
-    (TN d1, TN d2, TN d3,
+    (int64_t d1, int64_t d2, int64_t d3,
      const Tval * __restrict__ x,
      const TN * __restrict__ N,
      Tval * __restrict__ y)
@@ -65,6 +74,26 @@ capped_mean_impl
     #endif
 }
 
+// wrapper around the above for torch tensors
+template<Mode mode, typename TN, typename Tval>
+inline static void
+call_capped_mean_impl
+    (int64_t d1, int64_t d2, int64_t d3,
+     const torch::Tensor &x,
+     const torch::Tensor &N,
+     torch::Tensor &y)
+{
+    // Tensor::element_size return bytes per element
+    TORCH_CHECK(x.element_size() == sizeof(Tval), "type of x does not match Tval");
+    TORCH_CHECK(N.element_size() == sizeof(TN), "type of N does not match TN");
+    TORCH_CHECK(y.element_size() == sizeof(Tval), "type of y does not match Tval");
+
+    capped_mean_impl<mode, TN, Tval>(d1, d2, d3,
+                                     x.data_ptr<Tval>(),
+                                     N.data_ptr<TN>(),
+                                     y.data_ptr<Tval>());
+}
+
 #ifdef CAPPED_MEAN_CUDA
 #define CHECK_DEVICE(x) TORCH_CHECK(x.device().is_cuda(), #x " must be a CUDA tensor")
 #else
@@ -73,6 +102,26 @@ capped_mean_impl
 
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x) do { CHECK_DEVICE(x); CHECK_CONTIGUOUS(x); } while(0)
+
+// use this macro to dispatch capped_mean_impl according to types
+// ... are the arguments passed to call_capped_mean_impl, which we omit to save some typing
+#define DISPATCH_IMPL(mode, torch_TN, torch_Tval, ...)                                              \
+    do {                                                                                            \
+             if ((torch_TN==torch::ScalarType::Int) && (torch_Tval==torch::ScalarType::Float))      \
+            call_capped_mean_impl<mode, int, float>(__VA_ARGS__);                                   \
+        else if ((torch_TN==torch::ScalarType::Long) && (torch_Tval==torch::ScalarType::Float))     \
+            call_capped_mean_impl<mode, int64_t, float>(__VA_ARGS__);                               \
+        else if ((torch_TN==torch::ScalarType::Short) && (torch_Tval==torch::ScalarType::Float))    \
+            call_capped_mean_impl<mode, int16_t, float>(__VA_ARGS__);                               \
+        else if ((torch_TN==torch::ScalarType::Int) && (torch_Tval==torch::ScalarType::Double))     \
+            call_capped_mean_impl<mode, int, double>(__VA_ARGS__);                                  \
+        else if ((torch_TN==torch::ScalarType::Long) && (torch_Tval==torch::ScalarType::Double))    \
+            call_capped_mean_impl<mode, int64_t, double>(__VA_ARGS__);                              \
+        else if ((torch_TN==torch::ScalarType::Short) && (torch_Tval==torch::ScalarType::Double))   \
+            call_capped_mean_impl<mode, int16_t, double>(__VA_ARGS__);                              \
+        else /* fallthrough */                                                                      \
+            TORCH_CHECK(false, "type combination not implemented");                                 \
+    } while (0)
 
 torch::Tensor
 // need different names here to comply with the setup.py thing
@@ -108,25 +157,8 @@ capped_mean_forward
     CHECK_INPUT(y);
 
     // perform the computation
-    TORCH_CHECK(x.scalar_type() == torch::ScalarType::Float,
-                "types other than float not implemented yet");
-    
-    #define CALL_WITH_TYPES(TN, Tval)                           \
-        capped_mean_impl<FORWARD, TN, Tval>(d1, d2, d3,         \
-                                            x.data_ptr<Tval>(), \
-                                            N.data_ptr<TN>(),   \
-                                            y.data_ptr<Tval>())
-
-    // NOTE I have checked with the header that
-    // Int = int, Long = int64_t
-    if (N.scalar_type() == torch::ScalarType::Int)
-        CALL_WITH_TYPES(int, float);
-    else if (N.scalar_type() == torch::ScalarType::Long)
-        CALL_WITH_TYPES(int64_t, float);
-    else
-        TORCH_CHECK(false, "N has unsupported type");
-
-    #undef CALL_WITH_TYPES
+    DISPATCH_IMPL(FORWARD, N.scalar_type(), x.scalar_type(),
+                  d1, d2, d2, x, N, y);
 
     return y;
 }
@@ -157,23 +189,10 @@ capped_mean_backward
     
     TORCH_CHECK(x.scalar_type() == grad.scalar_type(),
                 "x and grad expected to have same type");
-    TORCH_CHECK(x.scalar_type() == torch::ScalarType::Float,
-                "types other than float not implemented yet");
 
-    #define CALL_WITH_TYPES(TN, Tval)                               \
-        capped_mean_impl<BACKWARD, TN, Tval>(d1, d2, d3,            \
-                                             grad.data_ptr<Tval>(), \
-                                             N.data_ptr<TN>(),      \
-                                             y.data_ptr<Tval>())
-
-    if (N.scalar_type() == torch::ScalarType::Int)
-        CALL_WITH_TYPES(int, float);
-    else if (N.scalar_type() == torch::ScalarType::Long)
-        CALL_WITH_TYPES(int64_t, float);
-    else
-        TORCH_CHECK(false, "N has unsupported type");
-
-    #undef CALL_WITH_TYPES
+    // perfom computation
+    DISPATCH_IMPL(BACKWARD, N.scalar_type(), x.scalar_type(),
+                  d1, d2, d3, grad, N, y);
 
     return y;
 }
@@ -181,3 +200,4 @@ capped_mean_backward
 #undef CHECK_DEVICE
 #undef CHECK_CONTIGUOUS
 #undef CHECK_INPUT
+#undef DISPATCH_IMPL
