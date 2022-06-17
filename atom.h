@@ -37,8 +37,8 @@ inline
 #endif
 static void
 capped_mean_atom
-    (int64_t idx1, int64_t idx3,
-     int64_t d1, int64_t d2, int64_t d3,
+    (idx_t idx1, idx_t idx3,
+     idx_t d1, idx_t d2, idx_t d3,
      const Tval * __restrict__ x,
      const TN * __restrict__ N,
      Tval * __restrict__ y)
@@ -51,20 +51,20 @@ capped_mean_atom
         return;
     #endif
 
-    int64_t this_N = N[idx1];
-    int64_t idxout = idx1 * d3 + idx3;
+    idx_t this_N = N[idx1];
+    idx_t idxout = idx1 * d3 + idx3;
 
     if constexpr (mode == FORWARD)
     {
         #ifdef CAPPED_MEAN_CUDA
-        int64_t maxidx2 = d2;
+        idx_t maxidx2 = d2;
         #else
-        int64_t maxidx2 = this_N;
+        idx_t maxidx2 = this_N;
         #endif
 
         y[idxout] = 0.0;
 
-        for (int64_t idx2=0; idx2 != maxidx2; ++idx2)
+        for (idx_t idx2=0; idx2 != maxidx2; ++idx2)
             y[idxout] += x[idx1*d2*d3 + idx2*d3 + idx3]
                          #ifdef CAPPED_MEAN_CUDA
                          * ( (idx2 < this_N) ? 1.0 : 0.0 )
@@ -75,7 +75,7 @@ capped_mean_atom
     }
     else if constexpr (mode == BACKWARD)
     {
-        for (int64_t idx2=0; idx2 != d2; ++idx2)
+        for (idx_t idx2=0; idx2 != d2; ++idx2)
             y[idx1*d2*d3 + idx2*d3 + idx3] = (idx2<this_N) ? 
                                              x[idxout] / (Tval)this_N :
                                              0.0;

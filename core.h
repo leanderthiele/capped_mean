@@ -8,6 +8,9 @@
 
 #include <torch/extension.h>
 
+// need to do this typedef before including
+typedef int idx_t;
+
 #include "atom.h"
 #include "shapes.h"
 
@@ -16,13 +19,13 @@ template<Mode mode, typename TN, typename Tval>
 __global__
 static void
 capped_mean_kernel
-    (int64_t d1, int64_t d2, int64_t d3,
+    (idx_t d1, idx_t d2, idx_t d3,
      const Tval * __restrict__ x,
      const TN * __restrict__ N,
      Tval * __restrict__ y)
 {
-    int64_t idx1 = blockIdx.x,
-            idx3 = threadIdx.x;
+    idx_t idx1 = blockIdx.x,
+          idx3 = threadIdx.x;
 
     capped_mean_atom<mode, TN, Tval>(idx1, idx3,
                                      d1, d2, d3,
@@ -33,12 +36,12 @@ capped_mean_kernel
 #define INSTANTIATE_KERNELS(TN, Tval)              \
     template __global__ void                       \
     capped_mean_kernel <FORWARD, TN, Tval>         \
-        (int64_t, int64_t, int64_t,                \
+        (idx_t, idx_t, idx_t,                      \
          const Tval *, const TN *, Tval *);        \
                                                    \
     template __global__ void                       \
     capped_mean_kernel <BACKWARD, TN, Tval>        \
-        (int64_t, int64_t, int64_t,                \
+        (idx_t, idx_t, idx_t,                      \
          const Tval *, const TN *, Tval *)
 
 // at the moment, we don't do this for that many types, can always
@@ -57,7 +60,7 @@ INSTANTIATE_KERNELS(int16_t, double);
 template<Mode mode, typename TN, typename Tval>
 inline static void
 capped_mean_impl
-    (int64_t d1, int64_t d2, int64_t d3,
+    (idx_t d1, idx_t d2, idx_t d3,
      const Tval * __restrict__ x,
      const TN * __restrict__ N,
      Tval * __restrict__ y)
@@ -79,7 +82,7 @@ capped_mean_impl
 template<Mode mode, typename TN, typename Tval>
 inline static void
 call_capped_mean_impl
-    (int64_t d1, int64_t d2, int64_t d3,
+    (idx_t d1, idx_t d2, idx_t d3,
      const torch::Tensor &x,
      const torch::Tensor &N,
      torch::Tensor &y)
@@ -151,7 +154,7 @@ capped_mean_forward
     int64_t out_shape[8]; // whatever, this is gonna be enough
     get_out_shape(x.sizes(), N.sizes(), keepdim, out_dim, out_shape);
 
-    int64_t d1, d2, d3;
+    idx_t d1, d2, d3;
     get_dims(x.sizes(), N.sizes(), d1, d2, d3);
 
     auto y = torch::empty(c10::IntArrayRef(out_shape, out_dim),
@@ -192,7 +195,7 @@ capped_mean_backward
 
     CHECK_INPUT(y);
 
-    int64_t d1, d2, d3;
+    idx_t d1, d2, d3;
     get_dims(x.sizes(), N.sizes(), d1, d2, d3);
     
     TORCH_CHECK(x.scalar_type() == grad.scalar_type(),

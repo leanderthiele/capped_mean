@@ -65,7 +65,7 @@ get_out_shape
 inline static void
 get_dims
     (const c10::IntArrayRef x_shape, const c10::IntArrayRef N_shape,
-     int64_t &d1, int64_t &d2, int64_t &d3)
+     idx_t &d1, idx_t &d2, idx_t &d3)
 // figures out our canonical shape
 // the input can be reshaped into [ d1, d2, d3 ], where d2 is the same dimension
 // as the one we want to take the mean over (i.e. dim)
