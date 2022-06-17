@@ -78,21 +78,22 @@ if __name__ == '__main__' :
         if shape[0] == shape[1] :
             print('*** Doing artificial transpose to test cost of contiguous.')
 
-        if device == 'cpu' :
+        if True : #device == 'cpu' :
             # additional check using torch.autograd.gradcheck
             print('\tRunning torch.autograd.gradcheck...')
             rng = torch.Generator(device=device).manual_seed(42)
             x = torch.rand(*shape, requires_grad=True,
-                           dtype=torch.float32, generator=rng, device=device)
+                           dtype=torch.float64, generator=rng, device=device)
             N = torch.randint(low=1, high=shape[dim], size=shape[:dim],
                               dtype=torch.int64, generator=rng, device=device)
             f = lambda x_, N_=N : my_f(x_, N_)
             # this is all linear so the precision actually doesn't matter
-            warnings.filterwarnings('ignore', category=UserWarning,
-                                    message='Input #0 requires gradient and is not a '\
-                                            'double precision floating point or complex. '\
-                                            'This check will likely fail if all the inputs '\
-                                            'are not of double precision floating point or complex.')
+            # FIXME
+            #warnings.filterwarnings('ignore', category=UserWarning,
+            #                        message='Input #0 requires gradient and is not a '\
+            #                                'double precision floating point or complex. '\
+            #                                'This check will likely fail if all the inputs '\
+            #                                'are not of double precision floating point or complex.')
             torch.autograd.gradcheck(f, x, raise_exception=True, fast_mode=True)
             print('\t... passed torch.autograd.gradcheck')
         else :
