@@ -3,6 +3,7 @@
  * Define CAPPED_MEAN_CUDA before including to get the CUDA version.
  */
 
+#include <algorithm>
 #include <stdint.h>
 
 #include <torch/extension.h>
@@ -88,10 +89,19 @@ call_capped_mean_impl
     TORCH_CHECK(N.element_size() == sizeof(TN), "type of N does not match TN");
     TORCH_CHECK(y.element_size() == sizeof(Tval), "type of y does not match Tval");
 
-    capped_mean_impl<mode, TN, Tval>(d1, d2, d3,
-                                     x.data_ptr<Tval>(),
-                                     N.data_ptr<TN>(),
-                                     y.data_ptr<Tval>());
+    const Tval *x_ptr = x.data_ptr<Tval>();
+    const TN *N_ptr = N.data_ptr<TN>();
+    Tval *y_ptr = y.data_ptr<Tval>();
+
+    // I believe mean allows average over zero elements, giving NaN.
+    // We are a bit more restrictive as we don't see a scenario in which this is
+    // not a bug.
+    // I don't really know how to iterate over torch::Tensor, so do the caveman
+    // approach
+    TORCH_CHECK(std::all_of(N_ptr, N_ptr+d1, [d2](TN n){ return n>0 && n<=d2; }),
+                "all N must be in (0, d2]");
+                
+    capped_mean_impl<mode, TN, Tval>(d1, d2, d3, x_ptr, N_ptr, y_ptr);
 }
 
 #ifdef CAPPED_MEAN_CUDA
